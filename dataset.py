@@ -15,8 +15,14 @@ class FMRI_Dataset(Dataset):
 
     def __init__(self,data_dir):
         self.data_dir = data_dir
+        self.pat_lis = os.listdir(self.data_dir)
+        
+        for patient in self.pat_lis:
+            
 
     def __getitem__(self, index):
+
+
         return
     
     def __len__(self):
