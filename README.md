@@ -9,3 +9,4 @@ References:
 5. [Modeling the Dynamics of Human Brain Activity with Recurrent Neural Networks](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5299026/)
 6. [
 Identifying Autism from Resting-State fMRI Using Long Short-Term Memory Networks](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5669262/)
+7. [Using deep learning to investigate the neuroimaging correlates of psychiatric and neurological disorders: Methods and applications](https://www.sciencedirect.com/science/article/pii/S0149763416305176)
