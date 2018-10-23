@@ -6,10 +6,52 @@ from torch.autograd import Variable
 import math
 from functools import partial
 
-__all__ = [
-    'ResNet', 'resnet10', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
-    'resnet152', 'resnet200'
-]
+# __all__ = [
+#     'ResNet', 'resnet10', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
+#     'resnet152', 'resnet200'
+# ]
+
+def avgpool(): 
+    pool = nn.AvgPool3d(kernel_size=2, stride=2, padding=1)
+    return pool
+
+
+def conv_block(in_dim, out_dim):
+    layers = nn.Sequential(
+        nn.Conv3d(in_dim,out_dim,kernel_size=3, stride=1,padding=1),
+        nn.BatchNorm3d(out_dim), 
+        nn.LeakyReLU(0.2,inplace=True)
+    )
+    return layers
+
+    
+class ResidualBlock(nn.Module):
+    def __init__(self, in_channels,out_channel):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = conv_block(in_channels, in_channels)
+        self.conv2 = conv_block(in_channels*1, in_channels*2)
+        self.conv3 = conv_block(in_channels*2,out_channel)
+        self.avgpool = avgpool()
+        self.relu = nn.ReLU(inplace=True)
+
+        
+    def forward(self, x):
+        residual = x
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x  = self.conv3(x)
+        x = self.avgpool(x)
+        residual = self.avgpool(residual)
+        print(x.shape)
+        print(residual.shape)
+        x += residual
+        out = self.relu(x)
+        return out
+
+
+
+
+
 
 
 def conv3x3x3(in_planes, out_planes, stride=1):
@@ -119,10 +161,10 @@ class ResNet(nn.Module):
         self.inplanes = 64
         super(ResNet, self).__init__()
         self.conv1 = nn.Conv3d(
-            3,
+            1,
             64,
             kernel_size=7,
-            stride=(1, 2, 2),
+            stride=(2, 2, 2),
             padding=(3, 3, 3),
             bias=False)
         self.bn1 = nn.BatchNorm3d(64)
@@ -249,7 +291,7 @@ def resnet101(**kwargs):
 
 
 def resnet152(**kwargs):
-    """Constructs a ResNet-101 model.
+    """Constructs a ResNet-125 model.
     """
     model = ResNet(Bottleneck, [3, 8, 36, 3], **kwargs)
     return model

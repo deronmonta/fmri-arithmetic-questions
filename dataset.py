@@ -22,6 +22,7 @@ class FMRI_Dataset(Dataset):
     def __init__(self,data_dir):
         self.data_dir = data_dir
         self.df = get_dataframe(data_dir)
+
         print(self.df)
 
             
@@ -30,9 +31,9 @@ class FMRI_Dataset(Dataset):
 
         data_dir = self.df.loc[index,'full_path']
         print(data_dir)
-        volumes = get_hdr(data_dir)
-        #print(volumes)
-
+        volumes = get_hdr(data_dir,get_single=True)
+        volumes = torch.FloatTensor(volumes).cuda()
+        volumes = volumes[0]
         sample = {'volumes':volumes}
 
         return sample

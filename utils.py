@@ -59,12 +59,12 @@ def rescale_volume(volume, old_dimension, new_dimension,target_dimension):
 
     resize_factor = [x/y for x, y in zip(target_dimension,old_dimension)]
     
-    print(type(resize_factor))
+    #print(type(resize_factor))
 
     #resize_factor = target_dimension / [volume.shape]
 
     rescaled_volume = ndimage.zoom(volume, resize_factor, mode = 'nearest')
-    print(rescaled_volume.shape)
+    #print(rescaled_volume.shape)
 
     return rescaled_volume
 
@@ -77,7 +77,7 @@ def get_dataframe(data_dir):
 
         #need to go in another subdirectory
         full_path = os.path.join(data_dir,patient_id)
-        full_path = os.path.join(full_path,patient_id)
+        #full_path = os.path.join(full_path,patient_id)
         
         
         full_path_lis.append(full_path)
@@ -88,7 +88,7 @@ def get_dataframe(data_dir):
 
     return df
 
-def get_hdr(patient_dir):
+def get_hdr(patient_dir,get_single=False):
     """return a list of all numpy volumes in a patient directory
     
     Arguments:
@@ -99,6 +99,23 @@ def get_hdr(patient_dir):
     """
 
     hdr_lis = []
+
+    if get_single:
+
+        for filename in os.listdir(patient_dir):
+            if filename.endswith('.hdr'):
+                hdr_filename = filename
+
+        hdr = load_hdr(os.path.join(patient_dir,hdr_filename))
+        hdr = rescale_volume(hdr,old_dimension=[61,73,61],new_dimension=(64,64,64),target_dimension=[64,64,64])
+            #print(hdr)
+        hdr = normalize(hdr)
+
+        hdr = [hdr]
+
+        return hdr
+
+
     for filename in os.listdir(patient_dir):
         if filename.endswith('.hdr'):
 
