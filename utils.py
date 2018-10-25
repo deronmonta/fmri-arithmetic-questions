@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from operator import truediv
 from scipy import ndimage, misc
+import random
 
 def load_hdr(filename):
     """Load an .hdr file
@@ -49,22 +50,9 @@ def rescale_volume(volume, old_dimension, new_dimension,target_dimension):
         new_dimension: [] 
         order: order of the spline interpolation
     '''
-    #target_shape = np.round(volume.shape * old_dimension / new_dimension)
-    #true_spacing = old_dimension * volume.shape / target_shape
     old_dimension = volume.shape
-    # print(type(old_dimension))
-    # print(type(target_dimension))
-    # print(old_dimension)
-    # print(target_dimension)
-
     resize_factor = [x/y for x, y in zip(target_dimension,old_dimension)]
-    
-    #print(type(resize_factor))
-
-    #resize_factor = target_dimension / [volume.shape]
-
     rescaled_volume = ndimage.zoom(volume, resize_factor, mode = 'nearest')
-    #print(rescaled_volume.shape)
 
     return rescaled_volume
 
@@ -88,45 +76,77 @@ def get_dataframe(data_dir):
 
     return df
 
-def get_hdr(patient_dir,get_single=False):
+
+def get_hdr(patient_dir,filenames,get_single=False):
     """return a list of all numpy volumes in a patient directory
     
     Arguments:
-        patient_dir {[type]} -- [description]
+        patient_dir {str} -- []
+        start_index {int} -- [starting index for a sequence]
+        get_single {bool} -- select single volume from a patient, for testing only
     
     Returns:
-        [type] -- [description]
+        hdr_lis [numpy array] -- [numpy array with dimension [sequence_length, H, W , Z]]
     """
 
     hdr_lis = []
 
-    if get_single:
+    if  get_single:
 
         for filename in os.listdir(patient_dir):
             if filename.endswith('.hdr'):
-                hdr_filename = filename
-
-        hdr = load_hdr(os.path.join(patient_dir,hdr_filename))
-        hdr = rescale_volume(hdr,old_dimension=[61,73,61],new_dimension=(64,64,64),target_dimension=[64,64,64])
-            #print(hdr)
-        hdr = normalize(hdr)
-
-        hdr = [hdr]
-
-        return hdr
 
 
-    for filename in os.listdir(patient_dir):
-        if filename.endswith('.hdr'):
+                print(filename)
+                hdr = load_hdr(os.path.join(patient_dir,filename))
+                hdr = rescale_volume(hdr,old_dimension=[61,73,61],new_dimension=(64,64,64),target_dimension=[64,64,64])
+                hdr = normalize(hdr)
+                print(hdr.shape)
+                hdr_lis.append(hdr)
 
-            print(filename)
-            hdr = load_hdr(os.path.join(patient_dir,filename))
+        return hdr_lis
+
+
+    else:
+        hdr_lis = []
+        hdr_stacked = np.empty((len(filenames),64,64,64))
+        for row in filenames:
+            print(row)
+            # hdr_filename = row['filename']
+            hdr = load_hdr(os.path.join(patient_dir,row))
             hdr = rescale_volume(hdr,old_dimension=[61,73,61],new_dimension=(64,64,64),target_dimension=[64,64,64])
-            #print(hdr)
             hdr = normalize(hdr)
-
-            print(hdr.shape)
             hdr_lis.append(hdr)
+        print(len(hdr_lis))
+        for index, hdr in enumerate(hdr_lis):
+            hdr_stacked[index,:,:,:] = hdr
+
+        print('Stacked hdr shape {}'.format(hdr_stacked.shape))
+
+        return hdr_stacked
 
 
-    return hdr_lis
+def get_sequence(seq_df, window_size):
+    """Get a sequence 
+    
+    Arguments:
+        seq_df {} -- 
+        window_size {} -- 
+    
+    Returns:
+        start_idx -- starting index of the sequence 
+        seq -- 
+        filenames {pd}
+    """
+
+    start_idx = random.randint(0,270-window_size)
+    #seq = seq_df.loc[start_idx:start_idx+window_size-1,'task_id']
+    filenames = seq_df.loc[start_idx:start_idx+window_size-1,'filename']
+    #print('file name length {}'.format(len(filenames)))
+    seq = seq_df.loc[start_idx:start_idx+window_size-1,'task_id'].values
+
+    return start_idx, seq, filenames
+
+
+        
+        

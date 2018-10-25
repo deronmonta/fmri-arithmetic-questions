@@ -6,76 +6,6 @@ from torch.autograd import Variable
 import math
 from functools import partial
 
-# __all__ = [
-#     'ResNet', 'resnet10', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
-#     'resnet152', 'resnet200'
-# ]
-
-def avgpool(): 
-    pool = nn.AvgPool3d(kernel_size=2, stride=2, padding=1)
-    return pool
-
-
-def conv_block(in_dim, out_dim):
-    layers = nn.Sequential(
-        nn.Conv3d(in_dim,out_dim,kernel_size=3, stride=1,padding=1),
-        nn.BatchNorm3d(out_dim), 
-        nn.LeakyReLU(0.2,inplace=True)
-    )
-    return layers
-
-    
-class ResidualBlock(nn.Module):
-    def __init__(self, in_channels,out_channel):
-        super(ResidualBlock, self).__init__()
-        self.conv1 = conv_block(in_channels, in_channels)
-        self.conv2 = conv_block(in_channels*1, in_channels*2)
-        self.conv3 = conv_block(in_channels*2,out_channel)
-        self.avgpool = avgpool()
-        self.relu = nn.ReLU(inplace=True)
-
-        
-    def forward(self, x):
-        residual = x
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x  = self.conv3(x)
-        x = self.avgpool(x)
-        residual = self.avgpool(residual)
-        print(x.shape)
-        print(residual.shape)
-        x += residual
-        out = self.relu(x)
-        return out
-
-
-
-
-
-
-
-def conv3x3x3(in_planes, out_planes, stride=1):
-    # 3x3x3 convolution with padding
-    return nn.Conv3d(
-        in_planes,
-        out_planes,
-        kernel_size=3,
-        stride=stride,
-        padding=1,
-        bias=False)
-
-
-def downsample_basic_block(x, planes, stride):
-    out = F.avg_pool3d(x, kernel_size=1, stride=stride)
-    zero_pads = torch.Tensor(
-        out.size(0), planes - out.size(1), out.size(2), out.size(3),
-        out.size(4)).zero_()
-    if isinstance(out.data, torch.cuda.FloatTensor):
-        zero_pads = zero_pads.cuda()
-
-    out = Variable(torch.cat([out.data, zero_pads], dim=1))
-
-    return out
 
 
 class BasicBlock(nn.Module):
@@ -108,7 +38,6 @@ class BasicBlock(nn.Module):
         out = self.relu(out)
 
         return out
-
 
 class Bottleneck(nn.Module):
     expansion = 4
@@ -302,3 +231,75 @@ def resnet200(**kwargs):
     """
     model = ResNet(Bottleneck, [3, 24, 36, 3], **kwargs)
     return model
+
+
+
+
+# __all__ = [
+#     'ResNet', 'resnet10', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
+#     'resnet152', 'resnet200'
+# ]
+
+# def avgpool(): 
+#     pool = nn.AvgPool3d(kernel_size=2, stride=2, padding=1)
+#     return pool
+
+
+# def conv_block(in_dim, out_dim):
+#     layers = nn.Sequential(
+#         nn.Conv3d(in_dim,out_dim,kernel_size=3, stride=1,padding=1),
+#         nn.BatchNorm3d(out_dim), 
+#         nn.LeakyReLU(0.2,inplace=True)
+#     )
+#     return layers
+
+    
+# class ResidualBlock(nn.Module):
+#     def __init__(self, in_channels,out_channel):
+#         super(ResidualBlock, self).__init__()
+#         self.conv1 = conv_block(in_channels, in_channels)
+#         self.conv2 = conv_block(in_channels*1, in_channels*2)
+#         self.conv3 = conv_block(in_channels*2,out_channel)
+#         self.avgpool = avgpool()
+#         self.relu = nn.ReLU(inplace=True)
+
+        
+#     def forward(self, x):
+#         residual = x
+#         x = self.conv1(x)
+#         x = self.conv2(x)
+#         x  = self.conv3(x)
+#         x = self.avgpool(x)
+#         residual = self.avgpool(residual)
+#         print(x.shape)
+#         print(residual.shape)
+#         x += residual
+#         out = self.relu(x)
+#         return out
+
+
+
+
+
+# def conv3x3x3(in_planes, out_planes, stride=1):
+#     # 3x3x3 convolution with padding
+#     return nn.Conv3d(
+#         in_planes,
+#         out_planes,
+#         kernel_size=3,
+#         stride=stride,
+#         padding=1,
+#         bias=False)
+
+
+# def downsample_basic_block(x, planes, stride):
+#     out = F.avg_pool3d(x, kernel_size=1, stride=stride)
+#     zero_pads = torch.Tensor(
+#         out.size(0), planes - out.size(1), out.size(2), out.size(3),
+#         out.size(4)).zero_()
+#     if isinstance(out.data, torch.cuda.FloatTensor):
+#         zero_pads = zero_pads.cuda()
+
+#     out = Variable(torch.cat([out.data, zero_pads], dim=1))
+
+#     return out

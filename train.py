@@ -1,32 +1,112 @@
 from utils import *
 from dataset import *
 from networks.model import *
-#from networks.blocks import *
+import torch.backends.cudnn as cudnn
+import torch.optim
+import torch.utils.data
+from torch import nn
+
+
 #DATA_DIR = '/media/noahyang/Yale/fMRI_Data/fmri'
+
+# Hyperparameters and configurations
+
 DATA_DIR = './data'
 BATCH_SIZE = 2
+SEQ_CSV = './sequence.csv'
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # sets device for model and PyTorch tensors
+#CRITERION = nn.CrossEntropyLoss().to(DEVICE)
+CRITERION = nn.NLLLoss().to(DEVICE)
+NUM_EPOCHS = 20
+ENCODER_LR = 1e-2  # learning rate for encoder if fine-tuning
+DECODER_LR = 4e-2     # learning rate for decoder
 
-fmri_dataset = FMRI_Dataset(DATA_DIR)
+ATTENTION_DIM = 512
+DECODER_DIM = 512
+
+SEQ_LEN = 10 #Length of prediction duration
+
+fmri_dataset = FMRI_Dataset(DATA_DIR,SEQ_CSV,SEQ_LEN)
 dataloader = DataLoader(fmri_dataset, batch_size=1)
 
-encoder = Encoder(num_in_channel=1,num_filter=8)
+
+cudnn.benchmark = True  # set to true only if inputs to model are fixed size; otherwise lot of computational overhead
+
+encoder = ResNet34(seq_len=SEQ_LEN) # Dimension ares [batchsize ,num_filter, H, W, Z]
+decoder = Decoder(ATTENTION_DIM,DECODER_DIM,seq_len=SEQ_LEN)
+decoder_optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, decoder.parameters()),lr=DECODER_LR)
+encoder_optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, encoder.parameters()),lr=ENCODER_LR) 
+
+
+
 #encoder = resnet10(sample_size=64,sample_duration=64)
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # sets device for model and PyTorch tensors
 
-encoder = encoder.to(device)
+encoder = encoder.to(DEVICE)
+decoder = decoder.to(DEVICE)
 print(encoder)
+print(decoder)
 
-for index, sample in enumerate(dataloader):
 
-    #print(sample)
+def train(dataloader, encoder, decoder, criterion, encoder_optimizer, decoder_optimizer, epoch):
+    
 
-    volume = sample['volumes'][0]
+    encoder.train()
+    decoder.train()
 
-    # Need to unsqueeze twice, once for batch size one for channel
-    volume = volume.unsqueeze(0)
-    volume = volume.unsqueeze(0)
+    for index, sample in enumerate(dataloader):
 
-    print(volume.shape)
+        volume = sample['volumes']
+        seq = sample['sequence']
+        volume, seq = volume.to(DEVICE), seq.to(DEVICE)
+        volume,seq = volume.float(), seq.long()
+        
+        # Need once for batch size
+        #volume = volume.unsqueeze(0)
+        #volume = volume.unsqueeze(0)
 
-    output = encoder(volume)
-    print('Output shape {}'.format(output.shape))
+        print('Volume shape {}'.format(volume.shape))
+        print('Sequence {}'.format(seq))
+
+        encoded = encoder(volume)
+        print('Encoded shape: {}'.format(encoded.shape))
+        scores, length, alpha = decoder(encoded,decode_length=SEQ_LEN)
+        
+
+        scores = scores.float()
+        print(scores)
+        scores = scores.permute((0,2,1)) 
+        
+        
+
+        #seq = seq.unsqueeze(-1)
+        # print(scores.shape) # [batchsize ,num_task, seqlen]
+
+        # print(seq.shape) #[batchsize, seqlen]
+
+        
+        loss = criterion(scores,seq)
+        decoder_optimizer.zero_grad()
+        encoder_optimizer.zero_grad()
+        loss.backward()
+
+        decoder_optimizer.step()
+        encoder_optimizer.step()
+
+        class_prediction = torch.argmax(scores,dim=1)
+
+        print('Loss {}'.format(loss))
+        print('Probability prediction {}'.format(scores))
+        print('Class prediction {}'.format(class_prediction))
+        print('Ground truth {}'.format(seq))
+
+for epoch in range(0,NUM_EPOCHS):
+
+    train(dataloader = dataloader,
+        encoder = encoder,
+        decoder = decoder,
+        criterion = CRITERION,
+        encoder_optimizer = encoder_optimizer,
+        decoder_optimizer = decoder_optimizer,
+        epoch=epoch)
+
+

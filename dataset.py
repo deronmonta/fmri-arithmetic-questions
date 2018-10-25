@@ -14,27 +14,47 @@ class FMRI_Dataset(Dataset):
         
         First 2 seconds of each block are blank. 
         Each block 
+
+
+        The sequence encoding are as follows:
+        0: Blank
+        1: Large addition
+        2: Small additions
+        3: Large multiplication
+        4: Small multiplication
     
     Arguments:
         Dataset {[type]} -- [description]
     """
 
-    def __init__(self,data_dir):
+    def __init__(self,data_dir,seq_csv,seq_len):
         self.data_dir = data_dir
-        self.df = get_dataframe(data_dir)
+        self.df = get_dataframe(data_dir) # patient id dataframe
+        self.seq_df = pd.read_csv(seq_csv,header=0)
+        self.seq_len = seq_len
 
         print(self.df)
+        print(self.seq_df)
 
             
 
     def __getitem__(self, index):
 
         data_dir = self.df.loc[index,'full_path']
-        print(data_dir)
-        volumes = get_hdr(data_dir,get_single=True)
-        volumes = torch.FloatTensor(volumes).cuda()
-        volumes = volumes[0]
-        sample = {'volumes':volumes}
+
+        start_index, seq, filenames = get_sequence(seq_df=self.seq_df, window_size=self.seq_len)
+        print(filenames)
+        volumes = get_hdr(data_dir,filenames=filenames,get_single=False)
+        
+
+        #volumes = torch.FloatTensor(volumes).cuda()
+
+
+        # print(data_dir)
+        # print(seq)
+
+
+        sample = {'volumes':volumes,'sequence':seq}
 
         return sample
     
