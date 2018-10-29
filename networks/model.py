@@ -8,6 +8,15 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class BasicBlock(nn.Module):
+    '''Two layer block for shallow resnet, for 18,34
+    
+    Arguments:
+        nn {[type]} -- [description]
+    
+    Returns:
+        [type] -- [description]
+    '''
+
     expansion = 1
 
     def __init__(self, in_planes, planes, stride=1):
@@ -34,6 +43,15 @@ class BasicBlock(nn.Module):
 
 
 class Bottleneck(nn.Module):
+    '''Three layer block for deeper resnet, used for 50, 101, 152
+    
+    Arguments:
+        nn {[type]} -- [description]
+    
+    Returns:
+        [type] -- [description]
+    '''
+
     expansion = 4
 
     def __init__(self, in_planes, planes, stride=1):
@@ -233,7 +251,6 @@ class Decoder(nn.Module):
 
         encoded = encoded.view(batch_size, -1, encoder_dim)  # (batch_size, num_pixels, encoder_dim)
         h, c = self.init_hidden_state(encoded)  # (batch_size, decoder_dim)
-
 
         
          # Create empty tensors to hold prediction and alphas

@@ -46,14 +46,7 @@ class FMRI_Dataset(Dataset):
         print(filenames)
         volumes = get_hdr(data_dir,filenames=filenames,get_single=False)
         
-
-        #volumes = torch.FloatTensor(volumes).cuda()
-
-
-        # print(data_dir)
-        # print(seq)
-
-
+        
         sample = {'volumes':volumes,'sequence':seq}
 
         return sample

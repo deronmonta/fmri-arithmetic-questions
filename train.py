@@ -24,6 +24,7 @@ DECODER_LR = 4e-2     # learning rate for decoder
 ATTENTION_DIM = 512
 DECODER_DIM = 512
 
+NUM_TASK = 5 # Number of different types of class
 SEQ_LEN = 10 #Length of prediction duration
 
 fmri_dataset = FMRI_Dataset(DATA_DIR,SEQ_CSV,SEQ_LEN)
@@ -38,8 +39,6 @@ decoder_optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, de
 encoder_optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, encoder.parameters()),lr=ENCODER_LR) 
 
 
-
-#encoder = resnet10(sample_size=64,sample_duration=64)
 
 encoder = encoder.to(DEVICE)
 decoder = decoder.to(DEVICE)
@@ -57,15 +56,18 @@ def train(dataloader, encoder, decoder, criterion, encoder_optimizer, decoder_op
 
         volume = sample['volumes']
         seq = sample['sequence']
+
+        # seq = class2onehot(seq,SEQ_LEN,BATCH_SIZE,NUM_TASK)
+        # print('One hot shape {}'.format(seq.shape))
+
+
+
         volume, seq = volume.to(DEVICE), seq.to(DEVICE)
         volume,seq = volume.float(), seq.long()
         
-        # Need once for batch size
-        #volume = volume.unsqueeze(0)
-        #volume = volume.unsqueeze(0)
 
-        print('Volume shape {}'.format(volume.shape))
-        print('Sequence {}'.format(seq))
+        print('Volume shape {}'.format(volume.shape)) #[batchsize, seqlen, 64, 64, 64]
+        print('Sequence {}'.format(seq.shape)) #[batchsize, seqlen]
 
         encoded = encoder(volume)
         print('Encoded shape: {}'.format(encoded.shape))
@@ -76,12 +78,6 @@ def train(dataloader, encoder, decoder, criterion, encoder_optimizer, decoder_op
         print(scores)
         scores = scores.permute((0,2,1)) 
         
-        
-
-        #seq = seq.unsqueeze(-1)
-        # print(scores.shape) # [batchsize ,num_task, seqlen]
-
-        # print(seq.shape) #[batchsize, seqlen]
 
         
         loss = criterion(scores,seq)

@@ -5,6 +5,9 @@ import pandas as pd
 from operator import truediv
 from scipy import ndimage, misc
 import random
+import torch
+
+
 
 def load_hdr(filename):
     """Load an .hdr file
@@ -76,6 +79,22 @@ def get_dataframe(data_dir):
 
     return df
 
+def class2onehot(class_labels, seq_len, batchsize, num_task):
+
+    """Convert class label tensors to one hot encoding
+    
+    Returns:
+        [type] -- [description]
+    """
+
+
+    one_hot = torch.FloatTensor(batchsize,seq_len,num_task)
+    one_hot.zero_()
+    one_hot = one_hot.scatter_(1, seq_len,class_labels, 1)
+
+    return one_hot
+
+
 
 def get_hdr(patient_dir,filenames,get_single=False):
     """return a list of all numpy volumes in a patient directory
@@ -127,7 +146,7 @@ def get_hdr(patient_dir,filenames,get_single=False):
 
 
 def get_sequence(seq_df, window_size):
-    """Get a sequence 
+    """Get a sequence by randomly croping 
     
     Arguments:
         seq_df {} -- 
@@ -148,5 +167,26 @@ def get_sequence(seq_df, window_size):
     return start_idx, seq, filenames
 
 
+def plot_confusion(num_samples):
+
+    confusion = torch.zeros(num_task, num_task)
+    
+
+
+    # for sample in range(num_samples):
         
+
+    #     prediction_i = 
+    #     confusion[][]
+
+    
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    mat_plot = ax.matshow(confusion.numpy())
+
+    
+
+
+
         
