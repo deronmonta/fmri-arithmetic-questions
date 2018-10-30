@@ -36,7 +36,7 @@ plotting.plot_stat_map(tmap_filename)
 
 ###############################################################################
 # Visualizing works better with a threshold
-plotting.plot_stat_map(tmap_filename, threshold=3)
+plotting.plot_stat_map(tmap_filename, threshold=3,output_file='nilearn_3D_example.png')
 
 
 ###############################################################################
@@ -75,16 +75,19 @@ plotting.plot_stat_map(first_rsn)
 #
 # Then we give a few arguments to plot_stat_map in order to have a more
 # compact display.
-for img in image.iter_img(rsn):
+for index, img in enumerate(image.iter_img(rsn)):
     # img is now an in-memory 3D img
+
+    print(img)
+
     plotting.plot_stat_map(img, threshold=3, display_mode="z", cut_coords=1,
-                           colorbar=False)
+                           colorbar=False,output_file='nilearn_4D_example_{}.png'.format(index))
 
 
 ###############################################################################
 # plotting.show is useful to force the display of figures when running
 # outside IPython
-plotting.show()
+#plotting.show()
 
 #########################################################################
 # |
