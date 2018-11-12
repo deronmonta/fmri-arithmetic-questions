@@ -80,19 +80,32 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, num_blocks, seq_len ,num_classes=4):
+    def __init__(self, block, num_blocks, channel ,num_classes=5,no_lstm=True):
         super(ResNet, self).__init__()
-        # The sequence length is used as channel dimension
+        """
+        Num of classes is 5  different tasks: blank, AL, AS, ML, MS  
+        """
         self.in_planes = 64
-        self.seq_len = seq_len
+        self.channel = channel
+        self.num_classes = num_classes
+        self.sigmoid = nn.Sigmoid()
+        self.softmax = nn.Softmax()
 
-        self.conv1 = nn.Conv3d(seq_len, 64, kernel_size=3, stride=1, padding=1, bias=False)
+
+
+        self.conv1 = nn.Conv3d(channel, 64, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm3d(64)
         self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
         self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=1)
         self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
         self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
-        #self.linear = nn.Linear(4096*block.expansion, num_classes)
+        self.no_lstm = no_lstm
+
+        print(self.num_classes)
+        
+        if no_lstm:
+            #self.linear = nn.Linear(512*block.expansion, self.num_classes)
+            self.linear = nn.Linear(32768,self.num_classes)
 
     def _make_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1]*(num_blocks-1)
@@ -109,8 +122,16 @@ class ResNet(nn.Module):
         out = self.layer3(out)
         out = self.layer4(out)
         out = F.avg_pool3d(out, 4)
-        #out = out.view(out.size(0), -1)
-        #out = self.linear(out)
+
+
+
+        if self.no_lstm:
+            #out = out.view(out.size(0), -1)
+            out = out.view(-1,32768)
+            # print(out.shape)
+            out = self.linear(out)
+            out = self.softmax(out)
+            print(out.shape)
 
         # [batchsize ,channel, H, W, Z]
         return out
@@ -119,8 +140,8 @@ class ResNet(nn.Module):
 def ResNet18(seq_len):
     return ResNet(BasicBlock, [2,2,2,2],seq_len)
 
-def ResNet34(seq_len):
-    return ResNet(BasicBlock, [3,4,6,3],seq_len)
+def ResNet34(channel,num_classes, no_lstm):
+    return ResNet(BasicBlock, [3,4,6,3],channel,num_classes ,no_lstm )
 
 def ResNet50():
     return ResNet(Bottleneck, [3,4,6,3])
@@ -199,9 +220,13 @@ class Decoder(nn.Module):
         self.sigmoid = nn.Sigmoid()
         self.fc = nn.Linear(decoder_dim,num_task)
         self.dropout = nn.Dropout(p=self.dropout)
+        self.softmax = nn.Softmax()
 
 
         self.init_weights()
+
+
+        
 
     def init_weights(self):
         """
@@ -223,7 +248,7 @@ class Decoder(nn.Module):
         
 
         mean_encoder_out = encoder_out.mean(dim=1)
-        print(mean_encoder_out.shape)
+        #print(mean_encoder_out.shape)
         h = self.init_h(mean_encoder_out)  # hidden state (batch_size, decoder_dim)
         c = self.init_c(mean_encoder_out) # cell state
         
@@ -246,44 +271,61 @@ class Decoder(nn.Module):
         #decode_lengths = (decode_length - 1).tolist()
         decode_lengths = list(range(0,decode_length))
         
-
-
-
         encoded = encoded.view(batch_size, -1, encoder_dim)  # (batch_size, num_pixels, encoder_dim)
-        h, c = self.init_hidden_state(encoded)  # (batch_size, decoder_dim)
+        self.h, self.c = self.init_hidden_state(encoded)  # (batch_size, decoder_dim)
 
         
          # Create empty tensors to hold prediction and alphas
         predictions = torch.zeros(batch_size, decode_length, self.num_task).to(device)
         alphas = torch.zeros(batch_size, decode_length, 64).to(device)
         num_pixels = encoded.size(1)
-        print('Decode lengths {}'.format(decode_lengths))
-        for t in range(0,decode_length):
-            print(t)
-            batch_size_t = sum([l > t for l in decode_lengths])
-            attention_weighted_encoding, alpha = self.attention(encoded,h)
+        #print('Decode lengths {}'.format(decode_lengths))
 
-        
-            gate = self.sigmoid(self.f_beta(h))
-            attention_weighted_encoding = gate * attention_weighted_encoding
+        attention_weighted_encoding, alpha = self.attention(encoded,self.h)
+        gate = self.sigmoid(self.f_beta(self.h))
+        attention_weighted_encoding = gate * attention_weighted_encoding
 
-            
-
-            h,c = self.decode_step(
-                attention_weighted_encoding, (h, c)
+        self.h,self.c = self.decode_step(
+                attention_weighted_encoding, (self.h, self.c)
                 
             ) # (batchsize, decoder_dim)
 
+        preds = self.fc(self.h)
 
-            #preds = self.fc(self.dropout(h)) #(batchsize num-of-task)
-            preds = self.fc(h)
+        preds = self.softmax(preds)
 
-            predictions[:, t-1, :] = preds
-            alphas[:, t-1, :] = alpha
+        return preds, alphas
 
-            #prediction: [batchsize, seq_length, num_task]
 
-            return predictions ,decode_lengths,alphas
+
+
+
+        # for t in range(0,decode_length):
+        #     print(t)
+        #     batch_size_t = sum([l > t for l in decode_lengths])
+        #     attention_weighted_encoding, alpha = self.attention(encoded,h)
+
+        
+        #     gate = self.sigmoid(self.f_beta(h))
+        #     attention_weighted_encoding = gate * attention_weighted_encoding
+
+            
+
+        #     h,c = self.decode_step(
+        #         attention_weighted_encoding, (h, c)
+                
+        #     ) # (batchsize, decoder_dim)
+
+
+        #     #preds = self.fc(self.dropout(h)) #(batchsize num-of-task)
+        #     preds = self.fc(h)
+
+        #     predictions[:, t-1, :] = preds
+        #     alphas[:, t-1, :] = alpha
+
+        #     #prediction: [batchsize, seq_length, num_task]
+
+        #     return predictions ,decode_lengths,alphas
 
     
 

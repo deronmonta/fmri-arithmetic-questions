@@ -12,49 +12,62 @@ from torch import nn
 # Hyperparameters and configurations
 
 DATA_DIR = './data'
-BATCH_SIZE = 2
+BATCH_SIZE = 1
 SEQ_CSV = './sequence.csv'
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # sets device for model and PyTorch tensors
 #CRITERION = nn.CrossEntropyLoss().to(DEVICE)
-CRITERION = nn.NLLLoss().to(DEVICE)
+CRITERION = nn.CrossEntropyLoss().to(DEVICE)
 NUM_EPOCHS = 20
-ENCODER_LR = 1e-2  # learning rate for encoder if fine-tuning
-DECODER_LR = 4e-2     # learning rate for decoder
+ENCODER_LR = 1e-5  # learning rate for encoder if fine-tuning
+DECODER_LR = 4e-4     # learning rate for decoder
 
 ATTENTION_DIM = 512
 DECODER_DIM = 512
 
 NUM_TASK = 5 # Number of different types of class
-SEQ_LEN = 10 #Length of prediction duration
+SEQ_LEN = 8 #Length of prediction duration
 
 fmri_dataset = FMRI_Dataset(DATA_DIR,SEQ_CSV,SEQ_LEN)
-dataloader = DataLoader(fmri_dataset, batch_size=1)
+dataloader = DataLoader(fmri_dataset, batch_size=BATCH_SIZE)
 
 
 cudnn.benchmark = True  # set to true only if inputs to model are fixed size; otherwise lot of computational overhead
 
-encoder = ResNet34(seq_len=SEQ_LEN) # Dimension ares [batchsize ,num_filter, H, W, Z]
+encoder = ResNet34(channel=1,num_classes=NUM_TASK, no_lstm=True) # Dimension are [ batchsize , # of channel, H, W, Z]
 decoder = Decoder(ATTENTION_DIM,DECODER_DIM,seq_len=SEQ_LEN)
-decoder_optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, decoder.parameters()),lr=DECODER_LR)
-encoder_optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, encoder.parameters()),lr=ENCODER_LR) 
+#decoder_optimizer = torch.optim.Adam(decoder.parameters,lr=DECODER_LR)
+encoder_optimizer = torch.optim.Adam(encoder.parameters(),lr=ENCODER_LR) 
 
 
 
 encoder = encoder.to(DEVICE)
-decoder = decoder.to(DEVICE)
+#decoder = decoder.to(DEVICE)
 print(encoder)
-print(decoder)
+#print(decoder)
 
 
-def train(dataloader, encoder, decoder, criterion, encoder_optimizer, decoder_optimizer, epoch):
+def train(dataloader, encoder, decoder, criterion, encoder_optimizer, decoder_optimizer=None, epoch=20):
+    '''Single epoch training
+    
+    Args:
+            dataloader ([type]): [description]
+            encoder ([type]): [description]
+            decoder ([type]): [description]
+            criterion ([type]): [description]
+            encoder_optimizer ([type]): [description]
+            decoder_optimizer ([type]): [description]
+            epoch ([type]): [description]
+    '''
+
+        
     
 
     encoder.train()
-    decoder.train()
+    #decoder.train()
 
     for index, sample in enumerate(dataloader):
 
-        volume = sample['volumes']
+        volumes = sample['volumes']
         seq = sample['sequence']
 
         # seq = class2onehot(seq,SEQ_LEN,BATCH_SIZE,NUM_TASK)
@@ -62,38 +75,61 @@ def train(dataloader, encoder, decoder, criterion, encoder_optimizer, decoder_op
 
 
 
-        volume, seq = volume.to(DEVICE), seq.to(DEVICE)
-        volume,seq = volume.float(), seq.long()
+        volumes, seq = volumes.to(DEVICE), seq.to(DEVICE)
+        volumes,seq = volumes.float(), seq.long()
         
 
-        print('Volume shape {}'.format(volume.shape)) #[batchsize, seqlen, 64, 64, 64]
-        print('Sequence {}'.format(seq.shape)) #[batchsize, seqlen]
+        print('Volumes shape {}'.format(volumes.shape)) #[batchsize, seqlen, 64, 64, 64]
+        print('Sequence {}'.format(seq)) #[batchsize, seqlen]
 
-        encoded = encoder(volume)
-        print('Encoded shape: {}'.format(encoded.shape))
-        scores, length, alpha = decoder(encoded,decode_length=SEQ_LEN)
+        encoded_lis = []
+
+        for seq_index in range(SEQ_LEN):
+
+            #decoder_optimizer.zero_grad()
+            encoder_optimizer.zero_grad()
+
+            one_volume = volumes[:,seq_index,:,:,:]
+            # Need to unsqueeze TWICE
+
+            one_volume = one_volume.unsqueeze(1)
+            #[bs , 1 , 64 ,64 ,64]
+            
+            print('Single volume shape {}'.format(one_volume.shape))
+            #[bs , 1 , 64 ,64 ,64]
+
+            encoded = encoder(one_volume) # Single volume at sequence index 
+            #scores, alpha = decoder(encoded,decode_length=1)
+            #scores = encoded
+
+            #scores = scores.float()
+            #print('Scores: {}'.format(scores))
+            #scores = scores.permute((0,2,1)) 
+            
+            
+            loss = criterion(encoded,seq[:,seq_index])
+            loss.backward()
+
+            #decoder_optimizer.step()
+            encoder_optimizer.step()
+
+            class_prediction = torch.argmax(encoded,dim=1)
+
+            print('------------------------------new step---------------------------------')    
+            print('Loss {}'.format(loss))
+            print('Probability prediction {}'.format(encoded.cpu().detach().numpy()))
+            print('Class prediction {}'.format(class_prediction.cpu().detach().numpy()))
+            print('Ground truth {}'.format(seq[:,seq_index].cpu().detach().numpy()))
+
+            encoder_optimizer.zero_grad()
+
+
+
+
+        # [1, 512 , 4, 4, 4]
+       
         
 
-        scores = scores.float()
-        print(scores)
-        scores = scores.permute((0,2,1)) 
-        
-
-        
-        loss = criterion(scores,seq)
-        decoder_optimizer.zero_grad()
-        encoder_optimizer.zero_grad()
-        loss.backward()
-
-        decoder_optimizer.step()
-        encoder_optimizer.step()
-
-        class_prediction = torch.argmax(scores,dim=1)
-
-        print('Loss {}'.format(loss))
-        print('Probability prediction {}'.format(scores))
-        print('Class prediction {}'.format(class_prediction))
-        print('Ground truth {}'.format(seq))
 
 for epoch in range(0,NUM_EPOCHS):
 
@@ -102,7 +138,7 @@ for epoch in range(0,NUM_EPOCHS):
         decoder = decoder,
         criterion = CRITERION,
         encoder_optimizer = encoder_optimizer,
-        decoder_optimizer = decoder_optimizer,
+        decoder_optimizer = None,
         epoch=epoch)
 
 
