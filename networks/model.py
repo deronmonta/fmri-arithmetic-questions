@@ -22,9 +22,9 @@ class BasicBlock(nn.Module):
     def __init__(self, in_planes, planes, stride=1):
         super(BasicBlock, self).__init__()
         self.conv1 = nn.Conv3d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm3d(planes)
+        #self.bn1 = nn.BatchNorm3d(planes)
         self.conv2 = nn.Conv3d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm3d(planes)
+        #self.bn2 = nn.BatchNorm3d(planes)
 
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion*planes:
@@ -34,8 +34,10 @@ class BasicBlock(nn.Module):
             )
 
     def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x)))
-        out = self.bn2(self.conv2(out))
+        out = F.relu(self.conv1(x))
+        #out = F.relu(self.bn1(self.conv1(x)))
+        #out = self.bn2(self.conv2(out))
+        out = self.conv2(out)
         out += self.shortcut(x)
         out = F.relu(out)
         return out
@@ -89,12 +91,12 @@ class ResNet(nn.Module):
         self.channel = channel
         self.num_classes = num_classes
         self.sigmoid = nn.Sigmoid()
-        self.softmax = nn.Softmax()
+        self.softmax = nn.Softmax(dim=1)
 
 
 
         self.conv1 = nn.Conv3d(channel, 64, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm3d(64)
+        #self.bn1 = nn.BatchNorm3d(64)
         self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
         self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=1)
         self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
@@ -116,7 +118,8 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x)))
+        #out = F.relu(self.bn1(self.conv1(x)))
+        out = F.relu(self.conv1(x))
         out = self.layer1(out)
         out = self.layer2(out)
         out = self.layer3(out)
@@ -131,7 +134,7 @@ class ResNet(nn.Module):
             # print(out.shape)
             out = self.linear(out)
             out = self.softmax(out)
-            print(out.shape)
+            print('output shape {}'.format(out.shape))
 
         # [batchsize ,channel, H, W, Z]
         return out
@@ -141,7 +144,7 @@ def ResNet18(seq_len):
     return ResNet(BasicBlock, [2,2,2,2],seq_len)
 
 def ResNet34(channel,num_classes, no_lstm):
-    return ResNet(BasicBlock, [3,4,6,3],channel,num_classes ,no_lstm )
+    return ResNet(BasicBlock, [3,4,6,3],channel,num_classes ,no_lstm)
 
 def ResNet50():
     return ResNet(Bottleneck, [3,4,6,3])

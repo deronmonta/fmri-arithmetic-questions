@@ -4,6 +4,7 @@ from networks.model import *
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
+from torch.nn.utils.clip_grad import *
 from torch import nn
 
 
@@ -12,20 +13,20 @@ from torch import nn
 # Hyperparameters and configurations
 
 DATA_DIR = './data'
-BATCH_SIZE = 1
+BATCH_SIZE = 4
 SEQ_CSV = './sequence.csv'
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # sets device for model and PyTorch tensors
 #CRITERION = nn.CrossEntropyLoss().to(DEVICE)
-CRITERION = nn.CrossEntropyLoss().to(DEVICE)
+CRITERION = nn.CrossEntropyLoss()
 NUM_EPOCHS = 20
-ENCODER_LR = 1e-5  # learning rate for encoder if fine-tuning
+ENCODER_LR = 0.000001  # learning rate for encoder if fine-tuning
 DECODER_LR = 4e-4     # learning rate for decoder
 
 ATTENTION_DIM = 512
 DECODER_DIM = 512
 
 NUM_TASK = 5 # Number of different types of class
-SEQ_LEN = 8 #Length of prediction duration
+SEQ_LEN = 1 #Length of prediction duration
 
 fmri_dataset = FMRI_Dataset(DATA_DIR,SEQ_CSV,SEQ_LEN)
 dataloader = DataLoader(fmri_dataset, batch_size=BATCH_SIZE)
@@ -33,14 +34,14 @@ dataloader = DataLoader(fmri_dataset, batch_size=BATCH_SIZE)
 
 cudnn.benchmark = True  # set to true only if inputs to model are fixed size; otherwise lot of computational overhead
 
-encoder = ResNet34(channel=1,num_classes=NUM_TASK, no_lstm=True) # Dimension are [ batchsize , # of channel, H, W, Z]
+encoder = nn.DataParallel(ResNet34(channel=1,num_classes=NUM_TASK, no_lstm=True)).cuda() # Dimension are [ batchsize , # of channel, H, W, Z]
 decoder = Decoder(ATTENTION_DIM,DECODER_DIM,seq_len=SEQ_LEN)
 #decoder_optimizer = torch.optim.Adam(decoder.parameters,lr=DECODER_LR)
-encoder_optimizer = torch.optim.Adam(encoder.parameters(),lr=ENCODER_LR) 
+encoder_optimizer = torch.optim.Adam(encoder.parameters(),lr=ENCODER_LR,amsgrad=True) 
 
 
 
-encoder = encoder.to(DEVICE)
+# encoder = encoder.to(DEVICE)
 #decoder = decoder.to(DEVICE)
 print(encoder)
 #print(decoder)
@@ -59,14 +60,13 @@ def train(dataloader, encoder, decoder, criterion, encoder_optimizer, decoder_op
             epoch ([type]): [description]
     '''
 
-        
-    
-
     encoder.train()
     #decoder.train()
 
     for index, sample in enumerate(dataloader):
 
+
+        encoder_optimizer.zero_grad()
         volumes = sample['volumes']
         seq = sample['sequence']
 
@@ -75,12 +75,12 @@ def train(dataloader, encoder, decoder, criterion, encoder_optimizer, decoder_op
 
 
 
-        volumes, seq = volumes.to(DEVICE), seq.to(DEVICE)
+        volumes, seq = volumes.cuda(), seq.cuda()
         volumes,seq = volumes.float(), seq.long()
         
 
-        print('Volumes shape {}'.format(volumes.shape)) #[batchsize, seqlen, 64, 64, 64]
-        print('Sequence {}'.format(seq)) #[batchsize, seqlen]
+        # print('Volumes shape {}'.format(volumes.shape)) #[batchsize, seqlen, 64, 64, 64]
+        # print('Sequence {}'.format(seq)) #[batchsize, seqlen]
 
         encoded_lis = []
 
@@ -106,22 +106,26 @@ def train(dataloader, encoder, decoder, criterion, encoder_optimizer, decoder_op
             #print('Scores: {}'.format(scores))
             #scores = scores.permute((0,2,1)) 
             
-            
+            encoder_optimizer.zero_grad()
             loss = criterion(encoded,seq[:,seq_index])
             loss.backward()
 
+            clip_grad_norm(encoder.parameters(),max_norm=1)
+
             #decoder_optimizer.step()
             encoder_optimizer.step()
+            encoder_optimizer.zero_grad()
 
             class_prediction = torch.argmax(encoded,dim=1)
 
             print('------------------------------new step---------------------------------')    
             print('Loss {}'.format(loss))
-            print('Probability prediction {}'.format(encoded.cpu().detach().numpy()))
-            print('Class prediction {}'.format(class_prediction.cpu().detach().numpy()))
-            print('Ground truth {}'.format(seq[:,seq_index].cpu().detach().numpy()))
+            print('Probability prediction {}'.format(encoded))
+            print('Class prediction {}'.format(class_prediction))
+            print('Ground truth {}'.format(seq[:,seq_index]))
 
-            encoder_optimizer.zero_grad()
+            
+            
 
 
 

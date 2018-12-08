@@ -146,7 +146,7 @@ def get_hdr(patient_dir,filenames,get_single=False):
 
 
 def get_sequence(seq_df, window_size):
-    """Get a sequence by randomly croping 
+    """Get a sequence by randomly croping a time sequence
     
     Arguments:
         seq_df {} -- 

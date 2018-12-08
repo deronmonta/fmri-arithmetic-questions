@@ -43,8 +43,9 @@ class FMRI_Dataset(Dataset):
         data_dir = self.df.loc[index,'full_path']
 
         start_index, seq, filenames = get_sequence(seq_df=self.seq_df, window_size=self.seq_len)
-        print(filenames)
+        #print(filenames)    
         volumes = get_hdr(data_dir,filenames=filenames,get_single=False)
+        
         
         
         sample = {'volumes':volumes,'sequence':seq}
